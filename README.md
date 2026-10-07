@@ -1,29 +1,10 @@
 # Oryn — showcase
 
-**Oryn is a local assistant where you ask in plain words, approve a plan, and a *separate* checker confirms what actually happened.**
-This repository is a recruiter-facing showcase of the working prototype. The product source is **not** published here (see [Status](#status)).
+**Oryn is a local assistant prototype built around one idea: the thing that does the work must not be the thing that declares it done.** In the demonstrated workflow you ask a plain-language research question, approve a plan, a worker runs it in an isolated container, and Oryn's own Core checks the result and says plainly what it did and did not check.
+
+This repository is a recruiter-facing showcase (write-up and screenshots only). The product source is private and not published here.
 
 ![Oryn home screen: the character, example requests, and an honest refusal for a capability it does not have](screenshots/01-home-honest-refusal.png)
-
-## The problem
-Agent tools tend to say "done" on the strength of the worker's own report, ask for broad permissions up front, and pretend to have capabilities they lack. Oryn is an experiment in the opposite default: **nothing runs without an approval you can read, and "done" means the app's own Core checked it — not the worker.**
-
-## What it demonstrably does
-Each item below was run end to end in a real browser or packaged app. The captures are in `screenshots/`.
-
-| Capability | What you see | Screenshot |
-|---|---|---|
-| **Plan before action** | Ask a plain question; Oryn writes a one-step plan, shows cost ("free options only"), what the step can see, and the exact check it will run afterwards. A plain "yes" does not approve; you tap *Approve plan* or say "approve plan 1". | [02](screenshots/02-plan-awaiting-approval.png) |
-| **Bounded worker** | The approved step runs in a separate empty workspace inside Docker, with internet only for research steps, and can be cancelled. | [03](screenshots/03-worker-running.png) |
-| **Verification by Core, honestly worded** | The reply says what Core checked (file exists, sources cited, cited pages reachable) and, in plain text, what it did **not** check: "Core did not check the claims themselves." | [04](screenshots/04-verified-outcome.png) |
-| **Receipts and audit** | Developer Mode shows the plan, task, artifact (`findings.md`), "free options only" cost line, and an *Evidence & audit* view. | [05](screenshots/05-developer-mode-receipt.png) |
-| **Honest about missing capability** | Asked to post to LinkedIn, it says it can't and offers a draft instead of inventing a connector. | [01](screenshots/01-home-honest-refusal.png) |
-
-Evidence behind these (from the build's own test runs, 2026-10-07): the research workflow passed its live check 19/19, twice, against the real Core, real planner, and a real Docker worker using free model routes; character and panel motion checks passed in full-motion, reduced-motion and motion-off modes (15/15, 16/16, 17/17) in real Chrome; a packaged-app smoke test passed 12/12. These are self-run checks, not an external audit.
-
-![Plan awaiting approval](screenshots/02-plan-awaiting-approval.png)
-
-![Verified outcome with the limits of the check stated](screenshots/04-verified-outcome.png)
 
 ## Architecture
 ```
@@ -32,39 +13,60 @@ Plain-language request (text or voice)
         ▼
   Core  (Bun + TypeScript, WebSocket, AG-UI events)
   ├─ planner      → turns a request into a plan card
-  ├─ policy       → decides what needs approval; free-only routes by default
-  ├─ approval     → one named action at a time; spoken approval must name it
+  ├─ policy       → classifies each step; free-only model routes by default
+  ├─ approval     → plan-approved steps; a plain "yes" does not approve
   ├─ adapters     → replaceable workers: Hermes-in-Docker, web-research, Codex
   └─ verification → probes + receipt, written by Core, never by the worker
         │
         ▼
   App server (React 19)  →  Electron 44 shell (Core and app run as packaged sidecars)
 ```
-Design choices worth noting: workers are interchangeable adapters, so the product does not depend on any one model vendor; research fetches go through a DNS-pinned, SSRF-guarded client; the Watch feature is paused by default; failures are shown as failures rather than softened.
 
-Built with: Bun, TypeScript, React 19, Electron, Zod, fast-check, Docker, AG-UI (`@ag-ui/core`), the Vercel AI SDK, and free models through OpenRouter and Gemini. The worker image comes from Nous Research's Hermes.
+Engineering decisions worth noting:
+- **Core is the authority, workers are replaceable.** Approval and verification live in Core; workers are adapters, so the product does not depend on one model vendor.
+- **Honest verification wording.** Core's reply states the checks it ran (file exists, sources cited, cited pages reachable) and the one it did not (the claims themselves).
+- **Safety defaults.** Research steps run in a separate empty workspace; fetches go through a DNS-pinned, SSRF-guarded client; the Watch feature is paused by default; routes are free-only unless the owner allows spend.
+- **Failures are shown as failures.** The honest-refusal and "not checked" messages are deliberate design, not copy polish.
 
-## My engineering direction and contribution
-I set the product direction and the rules it has to obey, and I decided what counted as done:
-- Defined the contract: Core, not the worker, is the authority for approval and verification.
-- Wrote the standing rules and corrected the build when it drifted — for example restricting Docker *use* but not cleanup, and rejecting "automatic" modes that weren't actually finished.
-- Reviewed every approval path and the safety posture (free-only routing, no spend without consent, owner-gated actions).
-- Ran and judged the real-browser checks, and rejected delegated results that failed them (for instance a shrunken character and a change that only passed its own copy-test).
+Stack: Bun, TypeScript, React 19, Electron, Zod, fast-check, Docker, AG-UI (`@ag-ui/core`), the Vercel AI SDK, and free models through OpenRouter and Gemini. The worker image comes from Nous Research's Hermes.
 
-**How it was built, plainly:** the implementation was done mostly with AI coding agents under my direction — Claude Code did the bulk of implementation, test tools and verification; Cursor built several UI slices and audits; Copilot wrote tests; independent audits came from Codex/Forge. I re-verified delegated work before accepting it. I'm showing this as evidence of directing and verifying agent-built software, not as hand-written code.
+## Demonstrated outcomes
+One workflow was run end to end in a real browser: **a plan-approved research request.** Captures are in `screenshots/`.
+
+| Step | What you see | Screenshot |
+|---|---|---|
+| **Plan** | A plain research question becomes a one-step plan with cost ("free options only"), what the step can see, and the exact check Core will run afterwards. A plain "yes" does not approve; you tap *Approve plan* or say "approve plan 1". | [02](screenshots/02-plan-awaiting-approval.png) |
+| **Isolated run** | After approval, the step runs in an empty Docker workspace with internet access for research, and can be cancelled. | [03](screenshots/03-worker-running.png) |
+| **Verified outcome** | Core reports what it checked and states: "Core did not check the claims themselves." | [04](screenshots/04-verified-outcome.png) |
+| **Receipt** | Developer Mode shows the plan, task, `findings.md` artifact, cost line and an *Evidence & audit* view. | [05](screenshots/05-developer-mode-receipt.png) |
+
+Separately demonstrated: asked to post to LinkedIn, Oryn says it has no such capability and offers a draft instead of inventing a connector ([01](screenshots/01-home-honest-refusal.png)).
+
+Results from the build's own test runs (2026-10-07; agent-run, self-reported, not an external audit): the research workflow passed its live check 19/19 twice against the real Core, a real planner and a Docker worker on free model routes; character and panel motion checks passed in full, reduced and off motion (15/15, 16/16, 17/17) in real Chrome; a packaged-app smoke test passed 12/12.
+
+![Plan awaiting approval](screenshots/02-plan-awaiting-approval.png)
+
+![Verified outcome with the limits of the check stated](screenshots/04-verified-outcome.png)
+
+## My role, and what agents did
+- **Me:** product requirements and direction, the decisions that shape the design (Core as sole authority for approval and verification, free-only routing, owner-gated actions), reviewing outcomes, and accepting or rejecting delegated work.
+- **AI agents:** implementation, tests and real-browser automation. Claude Code did most of the implementation and test tooling; Cursor built several UI slices and audits; Copilot wrote tests; Codex/Forge ran independent audits.
+
+I am presenting this as directing and reviewing agent-built software, not as hand-written code.
 
 ## Current limitations
-- **Core verifies that the research ran and returned sources, not that the claims are true.**
+- **Core verifies that research ran and returned sources, not that the claims are true.**
+- Only the plan-approved research workflow is shown here. Other workflows exist in the prototype but are not demonstrated in this showcase.
 - Not yet through my own full acceptance: no clean-machine install and no real-microphone test.
 - The Windows installer is unsigned and is not distributed here.
-- The space (agent orchestration UIs) is crowded; this is a prototype exploring approval-and-verification, not a finished product.
-- Voice, when turned on by the owner, sends audio to a third-party speech service; voice is off by default.
+- Agent-orchestration UIs are a crowded space; this is a prototype exploring approval-and-verification.
+- Voice is off by default; when turned on it sends audio to a third-party speech service.
 
 ## Status
-Working prototype, running locally. The product source is private and unpublished. No hosted demo is offered: Oryn's backend runs on the owner's machine and is deliberately not exposed to the internet.
+Working prototype, running locally; source private and unpublished. No hosted demo: Oryn's backend runs on my machine and is deliberately not exposed to the internet.
 
-## Art and asset rights
-The character and background art are AI-generated by me with commercial image tools (OpenAI image generation and Higgsfield), then wired into the app. Screenshots here show only the approved Idle/Guide/Work character art; candidate poses I haven't approved are not shown. **All rights reserved** — these screenshots are for portfolio viewing and aren't licensed for reuse. See [NOTICE.md](NOTICE.md).
+## Art and screenshots
+The character and background shown are part of the product's own visuals. Screenshots are provided only for portfolio viewing; no licence to reuse them is granted (see [NOTICE.md](NOTICE.md)). Only the approved character poses appear; candidate poses are not shown.
 
 ## Contact
 Dilip Chikatla · [LinkedIn](https://www.linkedin.com/in/dilipchikatla/) · [GitHub](https://github.com/dilip-ch-dev)
