@@ -1,72 +1,65 @@
-# Oryn — showcase
+# Oryn — clarity into action
 
-**Oryn is a local assistant prototype built around one idea: the thing that does the work must not be the thing that declares it done.** In the demonstrated workflow you ask a plain-language research question, approve a plan, a worker runs it in an isolated container, and Oryn's own Core checks the result and says plainly what it did and did not check.
+**Oryn is a visual AI workspace that turns a plain request into a clear plan, real work, and results you can open and inspect.** Conversation and task execution live in one place, with visible progress and replaceable workers behind the scenes.
 
-This repository is a recruiter-facing showcase (write-up and screenshots only). The product source is private and not published here.
+![Oryn home: the character, the latest result with its code diff, and recent verified activity](screenshots/01-home-latest-result.png)
 
-![Oryn home screen: the character, example requests, and an honest refusal for a capability it does not have](screenshots/01-home-honest-refusal.png)
+## What Oryn helps you do
+- **Say what you want in plain words**, by typing or speaking.
+- **See the plan before anything happens.** Every step is written out: what it will do, whether it touches files or the internet, what it costs, and how the result will be checked.
+- **Get real work done.** Research a question and get a short answer with named sources. Run a project's tests, fix what fails, and run them again.
+- **Open the result.** See the code diff, the files produced, a receipt for each step, and an audit trail of what ran and where.
 
-## Architecture
+## One request, start to finish
+> *"Run the tests in the project, fix the failing applyDiscount calculation, and tell me what changed."*
+
+**1. Plan.** Oryn writes a three-step plan: run the tests, edit the file, run the tests again. Each step is labelled (safe workspace, changes files, asks you first), and the cost is shown.
+
+![A three-step plan with step labels and an Approve plan button](screenshots/02-plan-awaiting-approval.png)
+
+**2. Work.** After you approve, a worker carries out the steps in a safe copy of your project, not your original.
+
+**3. Result.** Oryn runs the checks itself and shows the outcome: tests passed, the diff of what changed, and a receipt. The home screen above is that result, with recent activity listed underneath.
+
+Research works the same way: ask a plain question, approve the plan, and get a short answer with its sources and a findings file.
+
+## How it is built
 ```
 Plain-language request (text or voice)
         │
         ▼
   Core  (Bun + TypeScript, WebSocket, AG-UI events)
   ├─ planner      → turns a request into a plan card
-  ├─ policy       → classifies each step; free-only model routes by default
+  ├─ policy       → classifies each step; free model routes by default
   ├─ approval     → plan-approved steps; a plain "yes" does not approve
-  ├─ adapters     → replaceable workers: Hermes-in-Docker, web-research, Codex
-  └─ verification → probes + receipt, written by Core, never by the worker
+  ├─ adapters     → replaceable workers: Hermes-in-Docker, web research, Codex
+  └─ verification → checks and receipts written by Core
         │
         ▼
-  App server (React 19)  →  Electron 44 shell (Core and app run as packaged sidecars)
+  App server (React 19)  →  Electron shell (Core and app run as packaged sidecars)
 ```
+Engineering decisions behind it:
+- **Replaceable workers.** Workers sit behind one contract, so Oryn is not tied to a single model vendor.
+- **Independent checking.** Core runs the checks and writes the receipt, so "tests passed" is something Oryn confirmed itself.
+- **Safe by default.** Work runs in an isolated workspace, web fetches use an SSRF-guarded client, and spending is off unless you allow it.
+- **An honest status model.** Each feature is graded Integrated, Working with limits, Configured, Researched, or Unavailable.
 
-Engineering decisions worth noting:
-- **Core is the authority, workers are replaceable.** Approval and verification live in Core; workers are adapters, so the product does not depend on one model vendor.
-- **Honest verification wording.** Core's reply states the checks it ran (file exists, sources cited, cited pages reachable) and the one it did not (the claims themselves).
-- **Safety defaults.** Research steps run in a separate empty workspace; fetches go through a DNS-pinned, SSRF-guarded client; the Watch feature is paused by default; routes are free-only unless the owner allows spend.
-- **Failures are shown as failures.** The honest-refusal and "not checked" messages are deliberate design, not copy polish.
+Stack: Bun, TypeScript, React 19, Electron, Zod, fast-check, Docker, AG-UI, Vercel AI SDK, free models via OpenRouter and Gemini; worker image from Nous Research's Hermes.
 
-Stack: Bun, TypeScript, React 19, Electron, Zod, fast-check, Docker, AG-UI (`@ag-ui/core`), the Vercel AI SDK, and free models through OpenRouter and Gemini. The worker image comes from Nous Research's Hermes.
+## Direction
+Oryn is heading toward a more personal, proactive assistant: one that understands your ongoing goals, uses the tools and accounts you choose to connect, brings the right decision to you at the right moment, and coordinates several helpers across longer projects.
 
-## Demonstrated outcomes
-One workflow was run end to end in a real browser: **a plan-approved research request.** Captures are in `screenshots/`.
+![Design concept: an agents workspace with planner, research and implementation stages and a verification receipt](concepts/design-concept-agents-workspace.png)
+*Design concept (AI-generated). This is a direction, not a screenshot of the running app.*
 
-| Step | What you see | Screenshot |
-|---|---|---|
-| **Plan** | A plain research question becomes a one-step plan with cost ("free options only"), what the step can see, and the exact check Core will run afterwards. A plain "yes" does not approve; you tap *Approve plan* or say "approve plan 1". | [02](screenshots/02-plan-awaiting-approval.png) |
-| **Isolated run** | After approval, the step runs in an empty Docker workspace with internet access for research, and can be cancelled. | [03](screenshots/03-worker-running.png) |
-| **Verified outcome** | Core reports what it checked and states: "Core did not check the claims themselves." | [04](screenshots/04-verified-outcome.png) |
-| **Receipt** | Developer Mode shows the plan, task, `findings.md` artifact, cost line and an *Evidence & audit* view. | [05](screenshots/05-developer-mode-receipt.png) |
+On the roadmap: a personalized daily home, proactive suggestions, scheduled and recurring work, connected email, calendar and other accounts (with your approval), and multi-helper project views.
 
-Separately demonstrated: asked to post to LinkedIn, Oryn says it has no such capability and offers a draft instead of inventing a connector ([01](screenshots/01-home-honest-refusal.png)).
+## Development status
+Oryn is a working prototype on Windows that runs locally.
+- **Demonstrated:** plain-language research with sources (live check passed 19/19, run twice) and an approved coding task with a verified diff, plus a packaged-app smoke test (12/12). These are self-run checks.
+- **Next:** a clean-machine install test, voice polish, more connected tools, and fact-checking of research answers (today Core confirms the research ran and returned sources).
+- Source is private and there is no hosted demo yet.
 
-Results from the build's own test runs (2026-10-07; agent-run, self-reported, not an external audit): the research workflow passed its live check 19/19 twice against the real Core, a real planner and a Docker worker on free model routes; character and panel motion checks passed in full, reduced and off motion (15/15, 16/16, 17/17) in real Chrome; a packaged-app smoke test passed 12/12.
-
-![Plan awaiting approval](screenshots/02-plan-awaiting-approval.png)
-
-![Verified outcome with the limits of the check stated](screenshots/04-verified-outcome.png)
-
-## My role, and what agents did
-- **Me:** product requirements and direction, the decisions that shape the design (Core as sole authority for approval and verification, free-only routing, owner-gated actions), reviewing outcomes, and accepting or rejecting delegated work.
-- **AI agents:** implementation, tests and real-browser automation. Claude Code did most of the implementation and test tooling; Cursor built several UI slices and audits; Copilot wrote tests; Codex/Forge ran independent audits.
-
-I am presenting this as directing and reviewing agent-built software, not as hand-written code.
-
-## Current limitations
-- **Core verifies that research ran and returned sources, not that the claims are true.**
-- Only the plan-approved research workflow is shown here. Other workflows exist in the prototype but are not demonstrated in this showcase.
-- Not yet through my own full acceptance: no clean-machine install and no real-microphone test.
-- The Windows installer is unsigned and is not distributed here.
-- Agent-orchestration UIs are a crowded space; this is a prototype exploring approval-and-verification.
-- Voice is off by default; when turned on it sends audio to a third-party speech service.
-
-## Status
-Working prototype, running locally; source private and unpublished. No hosted demo: Oryn's backend runs on my machine and is deliberately not exposed to the internet.
-
-## Art and screenshots
-The character and background shown are part of the product's own visuals. Screenshots are provided only for portfolio viewing; no licence to reuse them is granted (see [NOTICE.md](NOTICE.md)). Only the approved character poses appear; candidate poses are not shown.
-
-## Contact
 Dilip Chikatla · [LinkedIn](https://www.linkedin.com/in/dilipchikatla/) · [GitHub](https://github.com/dilip-ch-dev)
+
+*Screenshots and art are for viewing only; all rights reserved (see [NOTICE.md](NOTICE.md)).*
